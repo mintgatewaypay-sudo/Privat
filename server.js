@@ -207,12 +207,27 @@ app.get('/api/visitors/active', async (req, res) => {
   try {
     if (!isAdmin(req)) return res.status(401).json({ count: 0 });
     const cutoffIso = new Date(Date.now() - 15000).toISOString();
-    const { data, error } = await supabase.from('visitors').select('*').gte('last_seen', cutoffIso);
+    const { data, error } = await supabase.from('visitors').select('*').gte('last_seen', cutoffIso).order('last_seen', { ascending: false });
     if (error) throw error;
     res.json({ count: (data || []).length, visitors: data || [] });
   } catch (err) {
     console.error('visitors/active error:', err.message);
     res.json({ count: 0, visitors: [] });
+  }
+});
+
+// Redirect a specific visitor by session_id (admin)
+app.patch('/api/visitors/:session_id', async (req, res) => {
+  try {
+    if (!isAdmin(req)) return res.status(401).json({ success: false });
+    const { redirect_to } = req.body;
+    if (!redirect_to) return res.status(400).json({ success: false, message: 'redirect_to missing' });
+    const { error } = await supabase.from('visitors').update({ redirect_to }).eq('session_id', req.params.session_id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('visitor redirect error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 

